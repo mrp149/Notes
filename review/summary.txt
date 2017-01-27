@@ -1,0 +1,17 @@
+uclear:
+=======
+
+missing:
+========
+отсутсвуют: instr-counter 
+instumentation? возможно-ли вывести какиет-то признаки от микрокода наружу?
+
+to-be-change:
+=============
+pult-processor
+
+to-do:
+======
+
+
+

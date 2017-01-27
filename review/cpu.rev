@@ -1,0 +1,1079 @@
+    1	//
+    2	// Micro-BESM processor
+    3	//
+    4	// Copyright (c) 2016 Serge Vakulenko
+    5	//
+    6	// Permission is hereby granted, free of charge, to any person obtaining a copy
+    7	// of this software and associated documentation files (the "Software"), to deal
+    8	// in the Software without restriction, including without limitation the rights
+    9	// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+   10	// copies of the Software, and to permit persons to whom the Software is
+   11	// furnished to do so, subject to the following conditions:
+   12	//
+   13	// The above copyright notice and this permission notice shall be included in all
+   14	// copies or substantial portions of the Software.
+   15	//
+   16	// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+   17	// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+   18	// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+   19	// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+   20	// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+   21	// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+   22	// SOFTWARE.
+   23	//
+   24	`default_nettype none
+   25	
+   26	module cpu(
+   27	    input  wire         clk,        // clock
+   28	    input  wire         reset,      // global reset
+   29	    input  wire  [63:0] i_data,     // data bus input
+   30	    input  wire   [7:0] i_tag,      // tag bus input
+   31	    output logic [63:0] o_ad,       // address/data output
+   32	    output logic  [7:0] o_tag,      // tag output
+   33	    output logic        o_astb,     // address strobe
+   34	    output logic        o_rd,       // read op
+   35	    output logic        o_wr,       // write op
+   36	    output logic        o_wforce,   // ignore write protection bit
+   37	    input  wire         i_irq,      // external interrupt request
+   38	    output logic        o_iack      // interrupt acknowledge
+   39	);
+   40	timeunit 1ns / 10ps;
+   41	
+   42	// Internal registers
+   43	logic  [4:0] modgn;             // РНГ: регистр номера группы памяти модификаторов
+   44	logic  [7:0] procn;             // РНП: регистр номера процесса
+   45	logic [31:0] rr;                // регистр режимов и триггеры признаков
+   46	logic [31:0] vaddr;             // регистр исполнительного адреса
+   47	logic [19:0] physad;            // физический адрес, результат трансляции vaddr
+   48	logic [63:0] sh_out;            // результат сдвига
+   49	logic [10:0] pshift;            // регистр параметра сдвига
+   50	logic  [6:0] clz_out;           // результат поиска левой единицы
+   51	logic  [7:0] instr_code;        // код операции команды
+   52	logic [31:0] instr_addr;        // адресная часть команды
+   53	logic [11:0] jump_addr;         // ПНА КОП основного или дополнительного формата
+   54	logic [11:0] rwio_addr;         // ПНА команд rmod/wmod и обмена с пультовым процессором
+   55	logic [11:0] grp_addr;          // ПНА групп
+   56	logic [11:0] intr_addr;         // ПНА прерываний
+   57	
+   58	// Signals for ALU
+   59	logic  [8:0] alu_I;             // ALU instruction, from ALUD, FUNC and ALUS
+   60	logic        alu_C0;            // Carry input
+   61	logic [63:0] alu_Y;             // Y bus output from ALU
+   62	
+   63	// Signals for status/shift unit
+   64	logic [12:0] ss_I;              // Status/Shift instruction, from SHMUX and STOPC
+   65	logic  [3:0] ss_Y;              // Y bus input
+   66	logic  [3:0] ss_oY;             // Y bus output from Status/Shift
+   67	logic        ss_CT;             // Conditional test output
+   68	
+   69	// Global data bus D and Y
+   70	logic [63:0] D;
+   71	logic [63:0] Y;
+   72	
+   73	// Interrupts
+   74	logic       int_flag;           // Take interrupt immediately
+   75	logic [4:0] int_vect;           // Interrupt vector
+   76	logic       g_int;              // Глобальный признак наличия прерываний
+   77	logic       prg_int;            // Генерация программного прерывания
+   78	logic       ext_int;            // Генерация внешнего прерывания TODO
+   79	logic       clock_int;          // Прерывание от часов счетного времени (CT)
+   80	logic       timer_int;          // Прерывание от таймера счетного времени (CTT)
+   81	
+
+mp>
+mp>  нужно вспомнить, как это было сделано pult.proc. искать в источниках дд
+mp>
+   82	// Память обмена с пультовым процессором
+   83	logic [7:0] mpmem[16];
+   84	logic tx_busy;                  // В памяти обмена ЦП->ПП есть информация TODO
+   85	logic rx_busy;                  // В памяти обмена ПП->ЦП есть информация TODO
+   86	
+
+mp> возможно, это сделано более сложно чем надо
+
+   87	// Память приписок страниц
+   88	logic [19:0] pg_map[1024];
+   89	logic  [9:0] pg_virt;           // page index for current virtual address
+   90	logic  [9:0] pg_translated;     // translated physical page index
+   91	logic  [7:0] pg_procn;          // process number for current page
+   92	logic        pg_valid;          // access allowed for current page
+   93	logic        pg_rw;             // write allowed for current page
+   94	logic        pg_used[1024];     // БОБР, page has been referenced
+   95	logic        pg_dirty[1024];    // БИЗМ, page has been modified
+   96	logic        pg_reprio[1024];   // БМСП, reprioritize request
+   97	logic        pg_reprio_intr;    // interrupt when reprioritize finished
+   98	logic  [2:0] pg_access;         // both for current page
+   99	logic  [9:0] pg_index;          // РФС: регистр физической страницы
+  100	logic [11:0] pg_prio0[1024];    // page priority 0
+  101	logic [11:0] pg_prio1[1024];    // page priority 1
+  102	logic        pg_fill;           // fill pg_prio[] with 1s
+  103	logic  [9:0] pg_fcnt;           // fill count
+  104	
+  105	// Мультиплексор условий
+  106	logic cond;
+  107	
+  108	// Биты регистра режимов (РР)
+  109	logic [2:0] grp;
+  110	logic normb, rndb, ovrib, bnb, ovrftb, drg, rcb, cb, cemlrg, intstp, tr0, tr1;
+  111	logic flag_v, flag_c, flag_n, flag_z, no_badop;
+  112	logic no_rtag, no_badacc, no_progtag, no_intr, single_step, no_wprot;
+  113	logic no_pgprot, flag_negaddr, no_procnm, no_paging, flag_jump;
+  114	logic [1:0] rr_unused;
+  115	
+  116	// Биты расширения регистра режимов (РРР)
+  117	logic itag_cmd;                 // ПК - признак команд
+  118	logic mode_besm6;               // РЭ - режим эмуляции БЭСМ-6
+  119	logic itag_besm6;               // режим совместимости команды
+  120	logic dtag_besm6;               // режим совместимости операнда
+  121	logic dtag_noload;              // ЗЧП - запрет чтения операнда из памяти
+  122	logic dtag_nostore;             // ЗЗП - запрет записи операнда в память
+  123	logic itag_nofetch;             // ЗВП - запрет выборки команды из памяти
+  124	logic itag_nojump;              // ЗПУ - запрет передачи управления на команду
+  125	logic itag_pint, dtag_pint;     // ПИНТ - программная интерпретация тега
+  126	
+  127	logic instr_ir15;               // stack mode flag
+  128	logic tkk;                      // признак правой команды стандартизатора (TKK)
+  129	logic halt;                     // триггер "Останов", сбрасывается только из пультового процессора
+  130	logic run;                      // триггер "Пуск", устанавливается только из пультового процессора
+  131	logic acc_besm6;                // тег РЭ сумматора
+  132	
+  133	// Signals for arbiter
+  134	logic  [3:0] arb_opc;           // код операции арбитра
+  135	logic        arb_req;           // запрос к арбитру
+  136	logic        arb_suspend;       // блокировка арбитра
+  137	logic        arb_ready;         // ответ арбитра
+  138	
+  139	// External bus interface
+  140	logic [63:0] bus_DA;            // A data input
+  141	logic [71:0] bus_DB;            // B data input
+  142	logic [71:0] bus_DX;            // X data bus
+  143	logic  [1:0] bus_ARX;           // X address input
+  144	logic        bus_ECBTAG;        // B tag port enable
+  145	logic        bus_ECX;           // X port enable
+  146	logic        bus_WRX;           // X write enable
+  147	logic [63:0] bus_oDA;           // A data output, no tag
+  148	logic [71:0] bus_oDB;           // B data output
+  149	logic [71:0] bus_oDX;           // X data output
+  150	logic [63:0] bus_iword;         // fetch result: instruction word from RG1
+  151	logic  [7:0] bus_itag;          // fetch result: tag from RG1
+  152	logic  [7:0] bus_dtag;          // load result: tag from RG2
+  153	
+  154	// Control unit
+  155	// Input signals
+  156	logic        control_nCC;       // Conditional Code Bit
+  157	logic        control_CI;        // Carry-in bit for microprogram counter
+  158	logic [11:0] control_D;         // 12-bit data input to chip
+  159	
+  160	// Output signals
+  161	logic [11:0] control_Y;         // 12-bit address output
+  162	logic        control_nMAP;      // JMAP instruction: use rwio memory
+  163	logic        control_nVECT;     // CJV instruction: use intr memory
+  164	
+  165	//--------------------------------------------------------------
+  166	// Microinstruction ROM.
+  167	//
+  168	logic [111:0] memory[4096] = '{
+  169	    `include "../microcode/microcode.v"
+  170	    default: '0
+  171	};
+  172	
+  173	logic  [11:0] opaddr;           // opcode address
+  174	logic [112:1] opcode;           // 112-bit latched opcode
+  175	
+  176	always @(posedge clk)
+  177	    if (reset)
+  178	        opcode <= '0;           // Reset state
+  179	    else
+  180	        opcode <= memory[opaddr];
+  181	
+  182	// Microinstruction fields.
+  183	wire  [3:0] SQI   = opcode[112:109]; // Код операции селектора адреса микропрограмм СУАМ
+  184	wire [11:0] A     = opcode[108:97];  // Адрес следующей микрокоманды или адрес ПЗУ констант
+  185	wire  [1:0] MAP   = opcode[96:95];   // Выбор источника адреса, поступающего на вход D СУАМ
+  186	wire        ALU   = opcode[94];      // Разрешение выдачи информации из МПС на шину Y
+  187	wire  [2:0] ALUD  = opcode[93:91];   // Управление приемниками результата АЛУ
+  188	wire  [2:0] FUNC  = opcode[90:88];   // Код операции АЛУ МПС
+  189	wire  [2:0] ALUS  = opcode[87:85];   // Управление источниками операндов на входы АЛУ
+  190	wire        H     = opcode[84];      // Управление разрядностью АЛУ
+  191	wire  [3:0] RB    = opcode[83:80];   // Адрес регистра канала B МПС
+  192	wire  [3:0] RA    = opcode[79:76];   // Адрес регистра канала A МПС
+  193	wire  [1:0] CI    = opcode[75:74];   // Управление переносом C0 АЛУ МПС, разряды I12-I11
+  194	wire  [3:0] SHMUX = opcode[73:70];   // Сдвиг в МПС, разряды I9-I6 КОП СУСС
+  195	wire  [5:0] STOPC = opcode[69:64];   // Разряды I5-I0 КОП СУСС
+  196	wire        MOD   = opcode[63];      // Привилегированный режим обращения к специальным регистрам
+  197	wire  [6:0] PSHF  = opcode[62:56];   // Параметр сдвига сдвигателя
+  198	wire  [1:0] MNSA  = opcode[62:61];   // Адрес источника номера модификатора
+  199	wire  [4:0] MODNM = opcode[60:56];   // Номер модификатора в группе регистров
+  200	wire  [3:0] DSRC  = opcode[55:52];   // Управление источниками информации на шину D
+  201	wire  [3:0] YDST  = opcode[51:48];   // Управление приемниками информации с шины Y ЦП
+  202	wire  [1:0] sh_op = opcode[47:46];   // Код операции сдвигателя: CYCL, LOG, ARIPH или EMULF
+  203	wire  [3:0] ARBI  = opcode[45:42];   // Код операции арбитра общей шины
+  204	wire        RLD   = opcode[41];      // Загрузка регистра селектора адреса СУАМ и ШФ шин Y ЦП и D СУАМ
+  205	wire        LETC  = opcode[40];      // Прохождение признака ПИА на вход ПНА команд
+  206	wire  [2:0] CYSTR = opcode[39:37];   // Длительность тактового импульса
+  207	wire        SCI   = opcode[36];      // Передача условия на вход инкрементора
+  208	wire        ICI   = opcode[35];      // Инверсия условия на вход инкрементора (CI) СУАМ, не используется
+  209	wire        ICC   = opcode[34];      // Инверсия условий, выбираемых полем COND
+mp> дурацкий вопрос , а разве микрокоманда может прерыв? 
+  210	wire        ISE   = opcode[33];      // Разрешение внешних и внутренних прерываний
+  211	wire        CEM   = opcode[32];      // Разрешение записи в машинный регистр состояния M CYCC
+  212	wire        CEN   = opcode[31];      // Разрешение записи в микромашинный регистр состояния N CYCC
+  213	wire        CSM   = opcode[30];      // Управление обращением к памяти модификаторов
+  214	wire        WEM   = opcode[29];      // Разрешение записи в память модификаторов
+  215	wire        ECB   = opcode[28];      // Выбор канала B БОИ данных
+  216	wire        WRB   = opcode[27];      // Запись по каналу B в БОИ данных и БОИ тега
+  217	wire  [1:0] BRA   = opcode[26:25];   // Адрес регистра канала B БОИ даннных и БОИ тега
+  218	wire        ECA   = opcode[24];      // Выбор канала A БОИ данных
+  219	wire        WRA   = opcode[23];      // Запись по каналу A в БОИ данных.
+  220	wire  [1:0] ARA   = opcode[22:21];   // Адрес регистра канала A БОИ даннных
+  221	wire  [2:0] YDEV  = opcode[20:18];   // Выбор источника или приемника информации с шины Y
+  222	wire        WRY   = opcode[17];      // Запись в источники или приемники шины Y
+  223	wire  [2:0] DDEV  = opcode[16:14];   // Выбор источника или приемника информации с шины D
+  224	wire        WRD   = opcode[13];      // Управление записью в источники или приемники шины D
+  225	wire        IOMP  = opcode[12];      // Выбор дешифратора триггеров признаков или часов и таймера
+  226	wire  [4:0] FFCNT = opcode[11:7];    // Установка/сброс триггеров признаков
+  227	wire  [3:0] MPADR = opcode[10:7];    // Адрес регистра в блоке обмена с ПП
+  228	wire  [4:0] COND  = opcode[6:2];     // Выбор условия, подлежащего проверке
+  229	wire        MPS   = opcode[1];       // Выбор источника параметра сдвига
+  230	
+  231	//--------------------------------------------------------------
+  232	// Microinstruction control unit.
+  233	//
+  234	// БИС СУАМ вырабатывает сигналы /VE, /ME, /PE, которые
+  235	// используются для выборки внешних источников, подключенных к
+  236	// шине D:
+  237	//  * преобразователь начального адреса команд RMOD,WMOD и обращений
+  238	//    ПП (при наличии признака MOD, сигнал /ME);
+  239	//  * дополнительный преобразователь адреса, задающий адреса векторов
+  240	//    прерывания (VE). (сигнал /PE не используется).
+  241	//
+  242	// Каждой микрокомандой вырабатывается только один сигнал
+  243	// разрешения для внешнего источника.
+  244	//
+  245	// Сигналы I0-I3 поступают из микропрограммы; /RLD - с дешифратора
+  246	// триггеров признаков; /CC - с мультиплексора условий; выходы
+  247	// Y0-Y11 передают полученный адрес микрокоманды; на вход CI в
+  248	// зависимости от 36 разряда МП подается либо “1”, либо прямой или
+  249	// инверсный выход с мультиплексора условий, либо “0” в момент
+  250	// входа в микропрограмму обработки прерываний; сигнал /CCEN
+  251	// всегда равен “0”.
+  252	
+  253	am2910 control(clk,
+  254	    SQI, '0, control_nCC, ~RLD, control_CI,
+  255	    control_D, control_Y, , control_nVECT, control_nMAP, );
+  256	
+  257	// Carry-in bit for microprogram counter
+  258	// Ignore ICI, as if always enabled
+  259	assign control_CI =
+  260	    int_flag ? '0 :             // Interrupt: no address increment
+  261	        !SCI ? '1 :             // Increment by 1
+  262	               ~control_nCC;    // Conditional
+  263	
+  264	// 12-bit data input
+  265	assign control_D =
+  266	    (MAP == 0) ? A :            // PE, конвейерный регистр
+  267	    (MAP == 1) ? jump_addr :    // ME, ПНА КОП основного или дополнительного формата
+  268	    (MAP == 2) ? grp_addr :     // GRP, ПНА групп и микропрограммные признаки "След0" И "След1"
+  269	 !control_nMAP ? rwio_addr :    // JMAP instruction, use rwio memory
+  270	!control_nVECT ? intr_addr :    // CJV instruction, use intr memory
+  271	                 alu_Y[11:0];   // Выход АЛУ
+  272	
+  273	assign control_nCC = ICC ? cond : ~cond;
+  274	
+  275	// Выбор условия, подлежащего проверке.
+  276	always_comb case (COND)
+  277	      0: cond = '1;         // YES, "да"
+  278	      1: cond = normb;      // NORMB, блокировка нормализации (БНОР)
+  279	      2: cond = rndb;       // RNDB, блокировка округления (БОКР)
+  280	      3: cond = ovrib;      // OVRIB, блокировка прерывания по переполнению (БПП)
+  281	      4: cond = bnb;        // BNB, блокировка выхода числа за диапазон БЭСМ-6 (ББЧ)
+mp> что за зверь OVRFTB?
+  282	      5: cond = ovrftb;     // OVRFTB, блокировка проверки переполнения поля упрятывания (БППУ)
+  283	      6: cond = drg;        // DRG, режим диспетчера (РД)
+  284	      7: cond = mode_besm6; // EMLRG, режим эмуляции
+  285	      8: cond = rcb;        // RCB, признак правой команды (ППК)
+  286	      9: cond = cb;         // CB, признак изменения адреса 16 регистром (ПИА)
+  287	     10: cond = ~cemlrg;    // CEMLRG, РЭС, надо ли проверять сумматор и операнд в режиме РЭ
+  288	     11: cond = ss_CT;      // CT, сигнал CT CYCC
+  289	     12: cond = tr1;        // TR1, След1
+  290	     13: cond = intstp;     // INTSTP, признак останова по прерыванию (ПОП)
+  291	     14: cond = instr_ir15; // IR15, стековый режим команды (ИР15)
+  292	     15: cond = tkk;        // TKK, признак правой команды стандартизатора (TKK)
+mp> pult.proc
+  293	     16: cond = run;        // RUN, "пуск" от ПП
+  294	     19: cond = g_int;      // INT, признак наличия прерываний
+  295	     20: cond = ~pg_fill;   // FULMEM, память БМСП заполнена единицами
+  296	     21: cond = arb_ready;  // ARBRDY, готовность арбитра
+mp> ? 
+  297	     22: cond = tr0;        // TR0, След0
+mp> pult.proc
+  298	     23: cond = ~tx_busy;   // CPMP, память обмена "ЦП -> ПП" свободна
+  299	default: cond = '1;
+  300	endcase
+  301	
+  302	//--------------------------------------------------------------
+  303	// Constant ROM.
+  304	//
+  305	const logic [63:0] const_ROM[512] = '{
+  306	    `include "../microcode/constants.v"
+  307	    default: '0
+  308	};
+  309	logic [63:0] PROM;              // ПЗУ констант
+  310	
+  311	assign PROM = const_ROM[A[8:0]];
+  312	
+  313	//--------------------------------------------------------------
+  314	// Modifier memory.
+  315	//
+  316	logic [3:0] instr_reg;          // поле модификатора команды
+  317	logic [31:0] mr_mem[1024];      // память регистров-модификаторов
+  318	logic [31:0] mr_read;           // read from mr_mem[]
+  319	logic [4:0] mn;                 // номер модификатора
+  320	
+  321	assign mn =
+  322	    (MNSA == 0) ? vaddr[4:0] :  // U, регистр исполнительного адреса
+  323	    (MNSA == 1) ? instr_reg :   // IRA, поле модификатора команды
+  324	    (MNSA == 3) ? ~MODNM :      // MP, поле MODNM микрокоманды
+  325	                  '0;           // не используется
+  326	
+  327	assign mr_read =                // read modifier memory
+  328	    (mn[4] & MNSA!=3 & !MOD)
+  329	        ? '0                    // need MOD to access M[16:31]
+  330	        : mr_mem[{modgn, mn}];
+  331	
+  332	always @(posedge clk)
+  333	    if (CSM & WEM) begin
+  334	        if (mn == 0 & MNSA != 3)
+  335	            ;                   // cannot write to M0 from vaddr
+  336	        else if (mn[4] & MNSA != 3 & !MOD)
+  337	            ;                   // need MOD to write to M[16:32], no vaddr
+  338	        else if (ISE & int_flag)
+  339	            ;                   // don't modify SP when interrupted
+  340	        else
+  341	            mr_mem[{modgn, mn}] <= Y[31:0];
+  342	    end
+  343	
+  344	//--------------------------------------------------------------
+  345	// Timer
+  346	//
+  347	wire        tm_out0;                // output of timer0: use it as clock for timer1
+  348	wire        tm_out1;                // output of timer1: interrupt
+  349	wire        tm_out2;                // output of timer2: interrupt
+  350	logic       tm_out1_last;           // delayed tm_out1
+  351	logic       tm_out2_last;           // delayed tm_out2
+  352	logic       tm_clk0;                // clock for timer0, 1MHz
+  353	wire        tm_clk1 = tm_out0;      // clock for timer1, 100Hz
+  354	logic       tm_clk2;                // clock for timer2, 100kHz
+  355	logic [3:0] tm_counter2;            // divider for clk2
+  356	wire  [7:0] tm_dout;                // data output bus
+  357	
+  358	wire tm_cs = (DDEV == 4);           // CTIME: chip select
+  359	wire tm_wr = (DSRC == 15) & WRD;    // WT: write strobe from Y bus
+  360	wire tm_rd = (DSRC == 14);          // RT: read strobe to Y bus
+  361	
+  362	i8253 timer(clk, tm_cs, tm_rd, tm_wr,
+  363	            FFCNT[1:0], Y[7:0], tm_dout,
+  364	            tm_clk0, tm_clk1, tm_clk2,
+  365	            tm_out0, tm_out1, tm_out2);
+  366	
+  367	// Clock divider by 2.
+  368	always @(posedge clk) begin
+  369	    if (reset)
+  370	        tm_clk0 <= '0;
+  371	    else if (!halt)
+  372	        tm_clk0 <= ~tm_clk0;
+  373	end
+  374	
+  375	// Clock divider by 20.
+  376	always @(posedge clk) begin
+  377	    if (reset) begin
+  378	        tm_counter2 <= '0;
+  379	        tm_clk2 <= '0;
+  380	    end else if (tm_counter2 == 9) begin
+  381	        tm_counter2 <= '0;
+  382	        if (!halt)
+  383	            tm_clk2 <= ~tm_clk2;
+  384	    end else begin
+  385	        tm_counter2 <= tm_counter2 + 1;
+  386	    end
+  387	end
+  388	
+  389	// Clock and timer interrupts
+  390	always @(posedge clk) begin
+  391	    if (reset)
+  392	        clock_int <= '0;
+  393	    else if (tm_out1 & !tm_out1_last)
+  394	        clock_int <= '1;            // CT interrupt flag
+  395	    else if (!IOMP && FFCNT == 16)
+  396	        clock_int <= '0;            // CLRCT, сброс прерывания от часов счетного времени
+  397	
+  398	    if (reset)
+  399	        timer_int <= '0;
+  400	    else if (tm_out2 & !tm_out2_last)
+  401	        timer_int <= '1;            // CTT interrupt flag
+  402	    else if (!IOMP && FFCNT == 17)
+  403	        timer_int <= '0;            // CLRCTT, сброс прерывания от таймера счетного времени
+  404	
+  405	    tm_out1_last <= tm_out1;
+  406	    tm_out2_last <= tm_out2;
+  407	end
+  408	
+  409	//--------------------------------------------------------------
+  410	// Datapath: register file, ALU and status/shifts
+  411	//
+  412	datapath alu(clk,
+  413	    alu_I, RA, RB, D, alu_C0, H, alu_Y,
+  414	    ss_I, ~CEM, ~CEN, ss_Y, ss_oY, ss_CT);
+  415	
+  416	assign alu_I = {ALUD, FUNC, ALUS};
+  417	assign alu_C0 = control_nCC;
+  418	
+  419	// Управление источниками информации на шину D.
+  420	assign D =
+  421	    // DSRC mux
+  422	    (DSRC == 1)  ? {1'b1, modgn, 5'd0} : // MODGN: регистр номера группы памяти модификаторов
+  423	    (DSRC == 2)  ? procn :              // PROCN: регистр номера процесса
+  424	    (DSRC == 3)  ? rr :                 // CNT: регистр режимов и триггеры признаков
+  425	    (DSRC == 4)  ? {pg_index, 10'd0} :  // PHYSPG: регистр физической страницы
+  426	    (DSRC == 5)  ? arb_opc :            // ARBOPC: регистр КОП арбитра
+  427	    (DSRC == 8)  ? instr_addr :         // COMA: адресная часть команды
+  428	    (DSRC == 9)  ? sh_out :             // SHIFT: результат сдвига
+  429	    (DSRC == 10) ? instr_code :         // OPC: код операции команды
+  430	    (DSRC == 11) ? clz_out :            // LOS: результат поиска левой единицы
+  431	    (DSRC == 12) ? PROM :               // PROM: ПЗУ констант
+  432	    (DSRC == 14) ? tm_dout :            // RTIME, сигнал чтения часов/таймеров
+  433	
+  434	    // DDEV mux
+  435	    (DDEV == 1 & !WRD) ? pg_access :            // ВВ: БОБР, БИЗМ
+  436	    (DDEV == 2 & !WRD) ? pg_reprio[pg_index] :  // MODB: БМСП
+  437	    (DDEV == 5 & !WRD) ? {ss_oY, 6'd0} :        // STATUS: Y bus output from Status/Shift
+  438	    (DDEV == 6 & !WRD) ? pg_prio0[pg_index] :   // PPMEM0: память приоритетов страниц 0
+  439	    (DDEV == 7 & !WRD) ? pg_prio1[pg_index] :   // PPMEM1: память приоритетов страниц 1
+  440	
+  441	    // Others
+  442	    (CSM & !WEM) ? mr_read :            // регистр-модификатор
+  443	    (ECA & !WRA) ? bus_oDA :            // канал A БОИ данных
+  444	                   instr_addr;          // источник не указан: адресная часть команды?
+  445	
+  446	assign Y =
+  447	                   ALU ? alu_Y :            // Y bus output from ALU
+  448	    (YDEV == 1 & !WRB) ? bus_oDB[71:64] :   // ECBTAG, канал В БОИ тега
+  449	    (YDEV == 2 & !WRY) ? physad :           // PHYSAD, физический адрес (только на чтение)
+  450	    (YDEV == 3 & !WRY) ? vaddr :            // RADRR, регистр исполнительного адреса (чтение)
+  451	    (YDEV == 4 & !WRY) ? pg_map[pg_virt] :  // PSMEM, память приписок (CS);
+  452	    (YDEV == 5 & !WRY) ? mpmem[MPADR] :     // МРМЕМ, память обмена с ПП;
+  453	          (ECB & !WRB) ? bus_oDB[63:0] :    // канал B БОИ данных
+  454	                         '0;
+  455	
+  456	// Управление приемниками информации с шины Y ЦП.
+  457	always @(posedge clk)
+  458	    case (YDST)
+  459	     1: modgn    <= Y[9:5];     // MODGN, регистр номера группы памяти модификаторов
+  460	     2: procn    <= Y[7:0];     // PROCN, регистр номера процесса
+  461	   /*3: rr       <= Y[31:0];*/  // CNT, регистр режимов и триггеры признаков
+  462	   /*4: pg_index <= Y[19:10];*/ // PHYSPG, регистр физической страницы
+  463	   /*5: arb_opc  <= Y[3:0];*/   // ARBOPC, код операции арбитра
+  464	     8: vaddr    <= Y[31:0];    // ADRREG, регистр исполнительного адреса (запись)
+  465	   /*9: pshift   <= Y[10:0];*/  // PSHIFT, регистр параметра сдвига (только запись)
+  466	    endcase
+  467	
+  468	// Запись в источники или приемники шины Y.
+  469	always @(posedge clk)
+  470	    if (WRY)
+  471	        case (YDEV)
+  472	         4: pg_map[pg_virt] <= Y[19:0]; // PSMEM, память приписок (CS)
+  473	
+  474	         5: mpmem[MPADR] <= Y[7:0]; // МРМЕМ, память обмена с ПП
+  475	
+  476	         6: /*not supported*/;      // STOPM0, останов по заданному адресу
+  477	
+  478	         7: /*not supported*/;      // STOPM1, останов по заданному адресу
+  479	        endcase
+  480	
+  481	//assign cclr = (YDST == 10);       // запуск сброса кэша
+  482	
+  483	assign ss_I = {CI, alu_I[7], SHMUX, STOPC};
+  484	assign ss_Y = Y[9:6];               // status bits: Z N C V
+  485	
+  486	//--------------------------------------------------------------
+  487	// Shifter.
+  488	//
+  489	shifter sh(Y, MPS, PSHF, pshift, sh_op, sh_out);
+  490	
+  491	always @(posedge clk)
+  492	    if (YDST == 9)
+  493	        pshift <= Y[10:0];
+  494	
+  495	//--------------------------------------------------------------
+  496	// Count leading zeroes.
+  497	//
+  498	clz clz(Y, clz_out);
+  499	
+  500	//--------------------------------------------------------------
+  501	// External bus interface
+  502	//
+  503	assign bus_ECBTAG = (YDEV == 1);    // ydev=ECBTAG, выбор регистров БОИ тега
+  504	
+  505	assign bus_DA = D;
+  506	assign bus_DB = {Y[7:0], Y};
+  507	assign bus_DX = {i_tag, i_data};
+  508	assign o_ad   = bus_oDX[63:0];
+  509	assign o_tag  = bus_oDX[71:64];
+  510	
+  511	extbus busio(
+  512	    clk,
+  513	    bus_DA, bus_oDA,                // A data bus
+  514	    bus_DB, bus_oDB,                // B data bus
+  515	    bus_DX, bus_oDX,                // X data bus
+  516	    ARA, BRA,             bus_ARX,  // address inputs
+  517	    ECA, ECB, bus_ECBTAG, bus_ECX,  // port enable
+  518	    WRA, WRB,             bus_WRX,  // write enable
+  519	    bus_iword,                      // fetch result: instruction word
+  520	    bus_itag,                       // fetch result: tag
+  521	    bus_dtag                        // load result: tag
+  522	);
+  523	
+  524	//--------------------------------------------------------------
+  525	// Arbiter
+  526	//
+  527	arbiter arb(clk, reset,
+  528	    arb_req,                        // input request strobe
+  529	    arb_suspend & arb_req,          // input suspend condition
+  530	    arb_req ? ARBI : arb_opc,       // input opcode
+  531	    bus_ARX, bus_ECX, bus_WRX,      // X bus control
+  532	    o_astb, o_rd, o_wr,             // external memory interface
+  533	    o_iack,                         // external interrupt interface
+  534	    arb_ready                       // resulting status
+  535	);
+  536	assign arb_req = (YDEV == 2);       // PHYSAD, request to external bus
+  537	
+  538	// Запуск арбитра блокируется в нескольких случаях:
+  539	assign arb_suspend =
+  540	    (vaddr == 0) |                  // виртуальный адрес равен 0
+  541	    (!no_paging & !no_procnm &
+  542	     procn != pg_procn &            // страница принадлежит другому процессу
+  543	     pg_procn != 'hff) |
+  544	    (!no_paging &
+  545	     !no_pgprot & !pg_valid) |      // защита страницы по обращению
+  546	    (!no_paging & (ARBI == 10) &
+  547	     !no_wprot & !pg_rw) |          // защита страницы по записи
+  548	    (!no_paging &
+  549	     !flag_negaddr & vaddr[19]) |   // отрицательный виртуальный адрес
+  550	    (vaddr[31:19] != '0 &
+  551	     vaddr[31:19] != '1 &
+  552	     !mode_besm6);                  // отсутствующий адрес памяти в новом режиме
+  553	
+  554	always @(posedge clk)
+  555	    if (arb_req)
+  556	        arb_opc <= ARBI;            // PHYSAD, set from microinstruction
+  557	    else if (YDST == 5)
+  558	        arb_opc <= Y[3:0];          // ARBOPC, set from Y data bus
+  559	
+  560	logic exception;
+  561	
+  562	always @(posedge clk)
+  563	    if (reset)
+  564	        exception <= '0;
+  565	    else
+  566	        exception <= (arb_req & (ARBI != 0) & arb_suspend) |
+  567	                     (o_wr & i_tag[3] & !o_wforce);
+  568	
+  569	//--------------------------------------------------------------
+  570	// Instruction decoder
+  571	//
+  572	logic instr_ext;                // extended opcode flag
+  573	logic [19:0] addr;
+  574	wire uflag = LETC & cb;         // признак изменения адресом (ПИА)
+  575	
+  576	decoder dec(
+  577	    bus_iword,                  // instruction word
+  578	    mode_besm6,                 // besm6 compatibility (РЭ)
+  579	    tkk,                        // right half flag (ТКК)
+  580	    instr_reg,                  // modifier index
+  581	    instr_code,                 // instruction code (КОП)
+  582	    instr_ext,                  // extended opcode flag
+  583	    instr_ir15,                 // stack mode flag
+  584	    addr                        // address
+  585	);
+  586	assign instr_addr = {{12{addr[19]}}, addr};
+  587	
+  588	const logic [11:0] optab[4096] = '{
+  589	    `include "../microcode/optab.v"
+  590	};
+  591	assign jump_addr = optab[{instr_ext, mode_besm6, instr_ir15, uflag, instr_code}];
+  592	
+  593	//--------------------------------------------------------------
+  594	// Mode register (РР)
+  595	//
+  596	assign rr = {       // регистр режимов (РР)
+  597	    rr_unused,      // РР.31-30 - not specified
+  598	    flag_jump,      // РР.29 - признак команды передачи управления (ППУ)
+  599	    rcb,            // РР.28 - RCB, признак правой команды (ППК)
+  600	    cb,             // РР.27 - CB, признак изменения адреса 16 регистром (ПИА)
+  601	    no_paging,      // РР.26 - блокировка приписки (БП)
+  602	    no_procnm,      // РР.25 - блокировка проверки номера процесса (БПНП)
+  603	    flag_negaddr,   // РР.24 - режим отрицательных адресов (РОА)
+  604	    no_pgprot,      // РР.23 - блокировка защиты страниц по обращению (БЗО)
+  605	    no_wprot,       // РР.22 - блокировка защиты страниц по записи (БЗЗ)
+  606	    intstp,         // РР.21 - признак останова по прерыванию (ПОП)
+  607	    single_step,    // РР.20 - режим пошагового выполнения команд (РШ)
+  608	    cemlrg,         // РР.19 - CEMLRG, РЭС, надо ли проверять сумматор и операнд в режиме РЭ
+  609	    o_wforce,       // РР.18 - блокировка проверки тега при записи (БПТЗ)
+  610	    no_intr,        // РР.17 - блокировка внешних прерываний (БВП)
+  611	    no_progtag,     // РР.16 - блокировка программной интерпретации тега (БПИНТ)
+  612	    no_badacc,      // РР.15 - блокировка реакции на чужой сумматор (БЧС)
+  613	    no_rtag,        // РР.14 - блокировка проверки тега при чтении операнда (БПТЧ)
+  614	    no_badop,       // РР.13 - блокировка реакции на чужой операнд (БЧОП)
+  615	    drg,            // РР.12 - DRG, режим диспетчера (РД)
+  616	    ovrftb,         // РР.11 - OVRFTB, блокировка проверки переполнения поля упрятывания (БППУ)
+  617	    bnb,            // РР.10 - BNB, блокировка выхода числа за диапазон БЭСМ-6 (ББЧ)
+  618	    flag_z,         // РР.9 - признак нуля (ПН или Z)
+  619	    flag_n,         // РР.8 - признак знака (ПЗ или N)
+  620	    flag_c,         // РР.7 - признак переноса (ППС или С)
+  621	    flag_v,         // РР.6 - признак переполнения (ПП или OVR)
+  622	    ovrib,          // РР.5 - OVRIB, блокировка прерывания при переполнении (БПП)
+  623	    grp,            // РР.4-2 - группа для условных переходов (ГС,ГУ,ГЛ)
+  624	    rndb,           // РР.1 - RNDB, блокировка округления (БОКР)
+  625	    normb           // РР.0 - NORMB, блокировка нормализации (БНОР)
+  626	};
+  627	always @(posedge clk)
+  628	    if (YDST == 3) begin            // CNT, регистр режимов и триггеры признаков
+  629	        rr_unused    <= Y[31:30];
+  630	        flag_jump    <= Y[29];
+  631	        rcb          <= Y[28];
+  632	        cb           <= Y[27];
+  633	        no_paging    <= Y[26];
+  634	        no_procnm    <= Y[25];
+  635	        flag_negaddr <= Y[24];
+  636	        no_pgprot    <= Y[23];
+  637	        no_wprot     <= Y[22];
+  638	        intstp       <= Y[21];
+  639	        single_step  <= Y[20];
+  640	        cemlrg       <= Y[19];
+  641	        o_wforce     <= Y[18];
+  642	        no_intr      <= Y[17];
+  643	        no_progtag   <= Y[16];
+  644	        no_badacc    <= Y[15];
+  645	        no_rtag      <= Y[14];
+  646	        no_badop     <= Y[13];
+  647	        drg          <= Y[12];
+  648	        ovrftb       <= Y[11];
+  649	        bnb          <= Y[10];
+  650	        flag_z       <= Y[9];
+  651	        flag_n       <= Y[8];
+  652	        flag_c       <= Y[7];
+  653	        flag_v       <= Y[6];
+  654	        ovrib        <= Y[5];
+  655	        grp          <= Y[4:2];
+  656	        rndb         <= Y[1];
+  657	        normb        <= Y[0];
+  658	    end
+  659	
+  660	//--------------------------------------------------------------
+  661	// Tags
+  662	//
+  663	logic tag_fetch;                    // instruction tag update
+  664	logic tag_load;                     // data tag update
+  665	
+  666	always @(posedge clk) begin
+  667	    // RG1 updated: fetch complete
+  668	    tag_fetch <= !reset & bus_WRX & (bus_ARX == 'b01);
+  669	
+  670	    // RG2 updated: load complete
+  671	    tag_load <= !reset & bus_WRX & (bus_ARX == 'b10);
+  672	end
+  673	
+  674	// Режим эмуляции БЭСМ-6 (РЭ)
+  675	always @(posedge clk)
+  676	    if (reset)
+  677	        mode_besm6 <= '0;           // изначально РЭ=0
+  678	    else if (tag_fetch)
+  679	        mode_besm6 <= bus_itag[1];  // берем из тега командного слова
+  680	    else if (! IOMP)
+  681	        case (FFCNT)
+  682	        20: mode_besm6 <= '0;       // SETNR, установка НР
+  683	        22: mode_besm6 <= '1;       // SETER, установка РЭ
+  684	        endcase
+  685	
+  686	// Тег сумматора
+  687	always @(posedge clk)
+  688	    if (YDEV == 1 & WRB)
+  689	        acc_besm6 <= bus_DB[65];    // бит РЭ тега регистра RG3
+  690	
+  691	// Остальные биты тега командного слова
+  692	assign itag_cmd     = bus_itag[0];  // ПК - признак команд
+  693	assign itag_besm6   = bus_itag[1];  // режим совместимости команды
+  694	assign itag_nofetch = bus_itag[4];  // ЗВП - запрет выборки команды из памяти
+  695	assign itag_nojump  = bus_itag[5];  // ЗПУ - запрет передачи управления на команду
+  696	assign itag_pint    = bus_itag[7];  // ПИНТ - программная интерпретация тега
+  697	
+  698	// Биты тега операнда, извлечённого из памяти
+  699	assign dtag_besm6   = bus_dtag[1];  // режим совместимости операнда
+  700	assign dtag_noload  = bus_dtag[2];  // ЗЧП - запрет чтения операнда из памяти
+  701	assign dtag_pint    = bus_dtag[7];  // ПИНТ - программная интерпретация тега
+  702	
+  703	always @(posedge clk)               // ЗЗП - запрет записи операнда в память
+  704	    if (o_wr)                       // запись данных (DWR)
+  705	        dtag_nostore <= i_tag[3];
+  706	    else if (arb_req | (YDST == 1)) // новый запрос к арбитру или переключение контекста (MODGN)
+  707	        dtag_nostore <= '0;
+  708	
+  709	//--------------------------------------------------------------
+  710	// Триггеры признаков
+  711	//
+  712	always @(posedge clk)
+  713	    if (! IOMP) case (FFCNT)
+  714	     1: grp <= 3'b001;      // LOGGRP, установка логической группы
+  715	     2: grp <= 3'b010;      // MULGRP, установка группы умножения
+  716	     3: grp <= 3'b100;      // ADDGRP, установка группы сложения
+  717	   /*5: cb <= '1;*/         // SЕТС, установка триггера ПИА
+  718	   /*6: rcb <= '0;*/        // CLRRCB, сброс триггера ППК
+  719	   /*7: rcb <= '1;*/        // SETRCB, установка триггера ППК
+  720	     8: flag_jump <= '0;    // CLRJMP, сброс триггера ППУ
+  721	     9: flag_jump <= '1;    // SETJMP, установка триггера ППУ
+  722	    10: no_intr <= '0;      // SETEI, сброс маски прерываний (разрешение прерываний)
+  723	    11: no_intr <= '1;      // CLREI, установка маски прерываний (запрет прерываний)
+  724	    12: tr0 <= '0;          // CLRTR0, сброс микропрограммного признака "След0"
+  725	    13: tr0 <= '1;          // SETTR0, установка мп признака "След0"
+  726	    14: tr1 <= '0;          // CLRTR1, сброс мп признака "След1"
+  727	    15: tr1 <= '1;          // SETTR1, установка мп признака "След1"
+  728	    16: /*clock_int <= '0*/; // CLRCT, сброс прерывания от часов счетного времени
+  729	    17: /*timer_int <= '0*/; // CLRCTT, сброс прерывания от таймера счетного времени
+  730	    18: tkk <= '0;          // CLRTKK, сброс триггера коммутации команд - ТКК (ППК стандартизатора)
+  731	    19: tkk <= '1;          // SЕТТКК, установка ТКК
+  732	    20: /*mode_besm6 <= 0*/; // SETNR, установка НР
+  733	    21: /*pg_fcnt <= pg_index*/; // STRTLD, запуск загрузки памяти БМСП единицами
+  734	    22: /*mode_besm6 <= 1*/; // SETER, установка РЭ
+  735	    23: tkk <= ~tkk;        // СНТКК, переброс ТКК (работает в счетном режиме!)
+  736	    24: /*halt <= '1*/;     // SETHLT, установка триггера "Останов" (Halt)
+  737	    25: /*g_int <= '0*/;    // CLRINT, сброс прерываний (кроме прерываний от таймеров)
+  738	    26: /*run <= '0*/;      // CLRRUN, сброс триггера "Пуск"
+  739	    27: rx_busy <= '0;      // RDMPCP, установка признака "память обмена ПП -> ЦП прочитана"
+  740	    28: rx_busy <= '1;      // LDMPCP, установка признака "в памяти обмена ПП -> ЦП есть информация"
+  741	    29: tx_busy <= '1;      // LDCPMP, установка признака "в памяти обмена ЦП -> ПП есть информация"
+  742	    30: /*prg_int <= '1*/;  // PRGINT, установка программного прерывания с номером 31
+  743	    31: ext_int <= '1;      // EXTINT, установка внешнего прерывания на магистраль
+  744	    endcase
+  745	
+  746	// Триггер "Останов"
+  747	always @(posedge clk)
+  748	    if (reset)
+  749	        halt <= '0;
+  750	    else if (!IOMP && FFCNT == 24)  // ffcnt=SETHLT
+  751	        halt <= '1;                 // установка триггера "Останов" (Halt)
+  752	
+  753	// Триггер "Пуск"
+  754	always @(posedge clk)
+  755	    if (reset)
+  756	        run <= '1;
+  757	    else if (!IOMP && FFCNT == 26)  // ffcnt=CLRRUN
+  758	        run <= '0;                  // сброс триггера "Пуск"
+  759	
+  760	// Признак изменения адресом (ПИА) устанавливается и сбрасывается разными путями
+  761	// Если команда прервана, флаг ПИА не должен изменяться
+  762	always @(posedge clk)
+  763	    if (!g_int) begin
+  764	        if (!IOMP & FFCNT == 5)     // ffcnt=SЕТС
+  765	            cb <= '1;               // установка триггера ПИА
+  766	        else if (DDEV == 3)         // ddev=CLRCD
+  767	            cb <= '0;               // сброс ПИА, дополнительный сигнал
+  768	    end
+  769	
+  770	// ППК, признак правой команды
+  771	always @(posedge clk)
+  772	    if (ISE & !int_flag)
+  773	        rcb <= tkk;                 // Копирование ТКК в ППК
+  774	    else if (!IOMP)
+  775	        case (FFCNT)
+  776	          6: rcb <= '0;             // CLRRCB, сброс триггера ППК
+  777	          7: rcb <= '1;             // SETRCB, установка триггера ППК
+  778	        endcase
+  779	
+  780	// БОБР, БИЗМ: блокировка обращения, блокировка изменения
+  781	always @(posedge clk)
+  782	    if (WRD & DDEV == 1) begin          // ddev=ВВ: БОБР, БИЗМ
+  783	        pg_used[pg_index] <= D[1];
+  784	        pg_dirty[pg_index] <= D[2];
+  785	
+  786	    end else if (WRD & DDEV == 2) begin // MODB, БМСП
+  787	        pg_used[pg_index] <= '0;        // clear used and dirty flags
+  788	        pg_dirty[pg_index] <= '0;
+  789	
+  790	    end else if (arb_req) begin
+  791	        pg_used[pg_translated] <= '1;
+  792	
+  793	        case (ARBI)
+  794	         2, // CCWR, запись в кэш команд
+  795	         4, // DCWR, запись в кэш операндов
+  796	        10, // DWR, запись результата
+  797	        11, // RDMWR, чтение - модификация - запись
+  798	        12: // BTRWR, запись в режиме блочной передачи
+  799	            pg_dirty[pg_translated] <= '1;
+  800	        endcase
+  801	    end
+  802	
+  803	assign pg_access = { pg_dirty[pg_index], pg_used[pg_index], 1'b0 };
+  804	
+  805	// БМСП, бит модификации списка приоритетов
+  806	always @(posedge clk)
+  807	    if (reset) begin
+  808	        pg_fill <= '0;
+  809	        pg_reprio_intr <= '0;
+  810	
+  811	    end else if (WRD & DDEV == 2) begin // MODB, БМСП
+  812	        pg_reprio[pg_index] <= D[0];
+  813	        pg_reprio_intr <= D[0];
+  814	
+  815	    end else if (!IOMP && FFCNT == 21) begin // ffcnt=STRTLD
+  816	        pg_fill <= '1;                  // запуск загрузки памяти БМСП единицами
+  817	        pg_fcnt <= pg_index;
+  818	        pg_reprio_intr <= '0;
+  819	
+  820	    end else if (pg_fill) begin         // заполнение памяти БМСП единицами
+  821	        pg_reprio[pg_fcnt] <= '1;
+  822	        if (pg_fcnt[9:0] == 1023) begin
+  823	            pg_fill <= '0;
+  824	            pg_reprio_intr <= '1;
+  825	        end else
+  826	            pg_fcnt <= pg_fcnt + 1;
+  827	
+  828	    end else
+  829	        pg_reprio_intr <= '0;
+  830	
+  831	// PPMEM0/1, память приоритетов страниц
+  832	always @(posedge clk) begin
+  833	    if (WRD & DDEV == 6)                // РРМЕМ0, ОЗУ приоритетов страниц 0
+  834	        pg_prio0[pg_index] <= Y;
+  835	
+  836	    if (WRD & DDEV == 7)                // РРМЕМ1, ОЗУ приоритетов страниц 1
+  837	        pg_prio1[pg_index] <= Y;
+  838	end
+  839	
+  840	// Virtual page index
+  841	assign pg_virt =
+  842	    mode_besm6 ? vaddr[14:10] :     // 15 bits in besm6 mode
+  843	                 vaddr[19:10];      // 20 bits in normal mode
+  844	
+  845	// Translate virtual page into physical page index
+  846	assign pg_translated =
+  847	    no_paging ? pg_virt
+  848	              : pg_map[pg_virt][19:10];
+  849	
+  850	// Translate virtual address into physical address.
+  851	assign physad = {pg_translated, vaddr[9:0]};
+  852	
+  853	// Process number for current page
+  854	assign pg_procn = pg_map[pg_virt][7:0];
+  855	
+  856	// Access permit for current page
+  857	// Fetch is always allowed in kernel mode.
+  858	assign pg_valid = pg_map[pg_virt][9] | (drg & (ARBI == 8));
+  859	
+  860	// Write permit for current page
+  861	assign pg_rw = pg_map[pg_virt][8];
+  862	
+  863	// Physical page index
+  864	always @(posedge clk)
+  865	    if (arb_req)
+  866	        pg_index <= pg_translated;  // PHYSAD, set from microinstruction
+  867	    else if (YDST == 4)
+  868	        pg_index <= Y[19:10];       // PHYSPG, регистр физической страницы
+  869	
+  870	//--------------------------------------------------------------
+  871	// RWIO table
+  872	//
+  873	const logic [11:0] rwiotab[2048] = '{
+  874	    `include "../microcode/rwiotab.v"
+  875	    default: '0
+  876	};
+  877	
+  878	always @(posedge clk)
+  879	    rwio_addr <= rwiotab[{tr1, tr0, instr_addr[13:10], instr_addr[4:0]}];
+  880	
+  881	//--------------------------------------------------------------
+  882	// Group table
+  883	//
+  884	const logic [11:0] grouptab[32] = '{
+  885	    `include "../microcode/grouptab.v"
+  886	    default: '0
+  887	};
+  888	
+  889	assign grp_addr = grouptab[{tr1, tr0, grp}];
+  890	
+  891	//--------------------------------------------------------------
+  892	// Interrupt table
+  893	//
+  894	logic [11:0] intrtab[32] = '{
+  895	    `include "../microcode/intrtab.v"
+  896	    default: '0
+  897	};
+  898	
+  899	// Jump address for current interrupt vector
+  900	assign intr_addr = intrtab[int_vect];
+  901	
+  902	// Flag to take interrupt immediately
+  903	assign int_flag = exception | ((g_int | prg_int) & ISE & !no_intr);
+  904	
+  905	// On interrupt, jump to address 001
+  906	assign opaddr =
+  907	    int_flag ? 'h001                // Interrupt
+  908	             : control_Y;           // Regular execution
+  909	
+  910	// Set interrupt flag and vector
+  911	always @(posedge clk) begin
+  912	    // Этих прерываний не бывает:
+  913	    // 0 - отсутствующий блок памяти
+  914	    // 1 - многократная ошибка
+  915	    // 2 - "time out" при обращении к памяти
+  916	    // 3 - "time out" при обращении к шине
+  917	    // 5 - резерв
+  918	    // 24 - останов при совпадении адресов по запросу ПП
+  919	    // 25 - “time-out” при блокировке внешних прерываний
+  920	    // 27 - останов (halt) по обращению к памяти (stopm0, stopm1)
+  921	    // 29 - обращение блока связи ПП на чтение/запись регистров
+  922	
+  923	    // 6 - отсутствующий адрес памяти в новом режиме
+  924	    if (arb_req & (vaddr[31:19] != '0) & (vaddr[31:19] != '1) & !mode_besm6) begin
+  925	        int_vect <= 6;              // старшие разряды виртуального адреса
+  926	    end
+  927	
+  928	    // 7 - отрицательный номер страницы у команды
+  929	    // 8 - отрицательный номер страницы у операнда
+  930	    else if (arb_req & !no_paging & !flag_negaddr & vaddr[19]) begin
+  931	        int_vect <= (ARBI == 8) ?   // РОА=0 (при БП=0) при обращении в память
+  932	                    7 : 8;
+  933	    end
+  934	
+  935	    // 13 - математический адрес равен 0
+  936	    else if (arb_req & (vaddr == 0)) begin
+  937	        int_vect <= 13;             // АИСП=0 при обращении в память
+  938	    end
+  939	
+  940	    // 14 - чужой регистр приписки при чтении/записи операнда
+  941	    // 15 - чужой регистр приписки при выборке команд
+  942	    else if (arb_req & !no_paging & !no_procnm &
+  943	             (procn != pg_procn) & (pg_procn != 'hff))
+  944	    begin
+  945	        int_vect <= (ARBI == 8) ?   // РНП не соответствует регистру приписки
+  946	                    15 : 14;        // (при БПНП=0 и БП=0) при обращении в память
+  947	    end
+  948	
+  949	    // 16 - защита страницы при обращении
+  950	    else if (arb_req & !no_paging & !no_pgprot & !pg_valid) begin
+  951	        int_vect <= 16;             // нет бита доступа (при БЗО=0 и БП=0)
+  952	    end
+  953	
+  954	    // 17 - защита страницы при записи
+  955	    else if (arb_req & !no_paging & !no_wprot & !pg_rw & (ARBI == 10)) begin
+  956	        int_vect <= 17;             // нет бита разрешения записи (при БЗЗ=0 и БП=0)
+  957	    end
+  958	
+  959	    // 4 - программное прерывание
+  960	    else if (prg_int & !no_intr) begin
+  961	        int_vect <= 4;
+  962	    end
+  963	
+  964	    // 9 - программная интерпретация тега команды
+  965	    else if (tag_fetch & itag_pint & !no_progtag) begin
+  966	        g_int <= '1;                // ПИНТ (при БПИНТ=0) при выборке команды
+  967	        int_vect <= 9;
+  968	    end
+  969	
+  970	    // 10 - программная интерпретация тега операнда
+  971	    else if (tag_load & dtag_pint & !no_progtag) begin
+  972	        g_int <= '1;                // ПИНТ (при БПИНТ=0) при чтении из памяти
+  973	        int_vect <= 10;
+  974	    end
+  975	
+  976	    // 11 - защита адреса при чтении
+  977	    else if (tag_load & dtag_noload & !no_rtag) begin
+  978	        g_int <= '1;                // ЗЧП (при БПТЧ=0) при чтении из памяти
+  979	        int_vect <= 11;
+  980	    end
+  981	
+  982	    // 12 - контроль команды
+  983	    else if (tag_fetch & !itag_cmd) begin
+  984	        g_int <= '1;                // ПК при выборке команды
+  985	        int_vect <= 12;
+  986	    end
+  987	
+  988	    // 18 - защита выборки команды
+  989	    else if (tag_fetch & itag_nofetch) begin
+  990	        g_int <= '1;                // ЗВП при выборке команды
+  991	        int_vect <= 18;
+  992	    end
+  993	
+  994	    // 19 - защита передачи управления
+  995	    else if (tag_fetch & itag_nojump & flag_jump) begin
+  996	        g_int <= '1;                // ЗПУ и ППУ при выборке команды
+  997	        int_vect <= 19;
+  998	    end
+  999	
+ 1000	    // 20 - защита адреса при записи
+ 1001	    else if (dtag_nostore & !o_wforce) begin
+ 1002	        int_vect <= 20;             // ЗЗП (при БПТЗ=0) при записи в память
+ 1003	    end
+ 1004	
+ 1005	    // 21 - чужой сумматор
+ 1006	    else if (tag_fetch & (itag_besm6 != acc_besm6) & !no_badacc) begin
+ 1007	        g_int <= '1;                // несовпадение РЭ с тегом сумматора (при БЧС=0)
+ 1008	        int_vect <= 21;
+ 1009	    end
+ 1010	
+ 1011	    // 22 - чужой операнд
+ 1012	    else if (tag_load & (dtag_besm6 != acc_besm6) & !no_badop) begin
+ 1013	        g_int <= '1;                // несовпадение РЭ с тегом операнда (при БЧОП=0)
+ 1014	        int_vect <= 22;
+ 1015	    end
+ 1016	
+ 1017	    // 23 - запрос модификации приоритетов страниц
+ 1018	    else if (pg_reprio_intr) begin
+ 1019	        g_int <= '1;                // изменение приоритета закончено
+ 1020	        int_vect <= 23;
+ 1021	    end
+ 1022	
+ 1023	    // 28 - шаговое прерывание (приоритет выше, чем у внешних прерываний)
+ 1024	    else if (single_step) begin
+ 1025	        g_int <= '1;                // установлен бит РР[20]
+ 1026	        int_vect <= 28;
+ 1027	    end
+ 1028	
+ 1029	    // 26 - внешние прерывания
+ 1030	    else if (i_irq) begin
+ 1031	        g_int <= '1;                // флаг внешнего прерывания
+ 1032	        int_vect <= 26;
+ 1033	    end
+ 1034	
+ 1035	    // Команды CLRCT и CLRCTT сбрасывают не только флаги прерываний часов и таймера,
+ 1036	    // но и общий флаг прерывания (если нет других причин).
+ 1037	    else if (!IOMP &&
+ 1038	             (FFCNT == 25 |         // CLRINT, сброс прерываний (кроме прерываний от таймеров)
+ 1039	              FFCNT == 16 |         // CLRCT, сброс прерывания от часов счетного времени
+ 1040	              FFCNT == 17)) begin   // CLRCTT, сброс прерывания от таймера счетного времени
+ 1041	        g_int <= '0;
+ 1042	    end
+ 1043	
+ 1044	    // 30 - аппаратная часть часов счетного времени равна 0
+ 1045	    else if (clock_int) begin
+ 1046	        g_int <= '1;                // счетчик часов уменьшился до нуля
+ 1047	        int_vect <= 30;
+ 1048	    end
+ 1049	
+ 1050	    // 31 - аппаратная часть таймера счетного времени равна 0
+ 1051	    else if (timer_int) begin
+ 1052	        g_int <= '1;                // счетчик таймера уменьшился до нуля
+ 1053	        int_vect <= 31;
+ 1054	    end
+ 1055	end
+ 1056	
+ 1057	// Set soft interrupt flag
+ 1058	always @(posedge clk) begin
+ 1059	    if (!IOMP) begin
+ 1060	        if (FFCNT == 30)            // PRGINT, установка программного прерывания с номером 31
+ 1061	            prg_int <= '1;
+ 1062	        else if (FFCNT == 25)       // CLRINT, сброс прерываний (кроме прерываний от таймеров)
+ 1063	            prg_int <= '0;
+ 1064	    end
+ 1065	end
+ 1066	
+ 1067	endmodule
