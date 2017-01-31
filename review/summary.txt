@@ -3,15 +3,25 @@ uclear:
 
 missing:
 ========
-отсутсвуют: instr-counter 
-instumentation? возможно-ли вывести какиет-то признаки от микрокода наружу?
+instrumentation: отсутсвуют: instruction-counter and other perf. counters 
+instrumentation: возможно-ли вывести какиет-то признаки от микрокода наружу?
 
 to-be-change:
 =============
-pult-processor
+pult-processor: can be replaced by jtag iterface  
+save/restore: RAPU - spill/fill
+
+
+need-to-be-checked:
+===================
+TAGS - what is acctuallly supported in DD 
+
 
 to-do:
 ======
-
+interrupts: add item "traps" and made clear definition of that in the spec.
+interrupts: microcode interrupts meanning and how to recover.
+interrupt & trap vectors
+ 
 
 
