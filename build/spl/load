@@ -1,0 +1,23 @@
+#! /bin/sh 
+
+rm x??
+
+split -l 15000 $1
+
+cat HD0 > xzj
+cat xaa >> xzj
+cat FT1 >> xzj
+
+dispak xzj
+
+for a in xa[b-z]
+do
+cat HD1 > xzj
+cat $a >> xzj
+cat FT1 >> xzj
+
+dispak xzj
+
+done
+
+dispak HD2
