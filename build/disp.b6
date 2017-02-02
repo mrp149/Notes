@@ -1,0 +1,15 @@
+шифр 419999 зс5^
+лен 50(1400-ЗП)^
+лен 41(2048)^
+eeв1а3
+*name DispDubna-2017
+*     no list
+*call putflag*
+5
+*madlen
+*read:50100
+*tcatalog
+*to persro:50000,77
+*end file
+``````
+еконец
