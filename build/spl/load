@@ -1,5 +1,7 @@
 #! /bin/sh 
-
+# delaem vremennuyu lentu
+rm -i ~/.besm6/1999
+touch ~/.besm6/1999
 rm x??
 
 split -l 15000 $1
