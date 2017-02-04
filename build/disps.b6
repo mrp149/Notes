@@ -1,0 +1,25 @@
+шифр 419999 зс5^
+лен 50(1400-ЗП)^
+лен 41(2048)^
+eeв1а3
+*name DispDubna-2017
+*     no list
+*call putflag*
+5
+
+*MADLEN(L=BGRX)
+  FREQ300:,NAME,
+  FREQ300:,STEXT,. *** ЧACTOTA = 300 ГEPЦ
+  FREQ:,EQU,300
+  B*START:,EQU,0
+  ГMAC:,MACRO,KOП
+   ,KOП,.HET ПPИOPИTETOB
+  ГMAC:,ENDM,
+  ,END,
+*MADLEN(L=BGRX, SТЕХТ=FRЕQ300)
+*read:50100
+*tcatalog
+*to persro:50000,77
+*end file
+``````
+еконец
