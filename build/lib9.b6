@@ -1,0 +1,12 @@
+шифр 419999 зс5^
+лен 50(9)^
+eeв1а3
+*name monsys/9
+*     no list
+*call putflag*
+5
+*CALL PLCATALOG:50100
+*CALL PLCATALOG:50240
+*end file
+``````
+еконец
