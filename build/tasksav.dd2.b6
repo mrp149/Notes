@@ -1,12 +1,13 @@
 шифр 419999 зс5^
-лен 50(1000-ЗП)^
+лен 50(1600-ЗП)^
 лен 41(2048)^
 eeв1а3
-*name Madlen2-2017
+*name DispDubna-2017
 *     no list
 *call putflag*
 5
-*madlen(L=FBR)
+
+*MADLEN(L=FBR)
 *read:50100
 *tcatalog
 *to persro:50000,77

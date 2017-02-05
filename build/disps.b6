@@ -7,7 +7,7 @@ eeв1а3
 *call putflag*
 5
 
-*MADLEN(L=BGRX)
+*MADLEN(L=BFG)
   FREQ300:,NAME,
   FREQ300:,STEXT,. *** ЧACTOTA = 300 ГEPЦ
   FREQ:,EQU,300
@@ -16,7 +16,7 @@ eeв1а3
    ,KOП,.HET ПPИOPИTETOB
   ГMAC:,ENDM,
   ,END,
-*MADLEN(L=BGRX, SТЕХТ=FRЕQ300)
+*MADLEN(L=BFR, SТЕХТ=FRЕQ300)
 *read:50100
 *tcatalog
 *to persro:50000,77
