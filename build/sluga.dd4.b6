@@ -2,7 +2,7 @@
 лен 50(1800-ЗП)^
 лен 41(2048)^
 eeв1а3
-*name DispDubna-2017
+*name sluga
 *     no list
 *call putflag*
 5
@@ -10,7 +10,7 @@ eeв1а3
 *MADLEN(L=FBR)
 *read:50100
 *tcatalog
-*to persro:50000,77
+*to perso:50000,77
 *end file
 ``````
 еконец
