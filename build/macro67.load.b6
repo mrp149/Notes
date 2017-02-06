@@ -1,0 +1,24 @@
+шифр 419999 зс5^
+лен 50(1500)^
+лен 51(1600)^
+лен 52(1700)^
+лен 41(2048)^
+eeв1а3
+*name macro67
+*     no list
+*call putflag*
+5
+
+*      MADLEN(L=BR)
+*      read:50100
+
+*perso:50000
+*tcatalog
+*perso:51000,cont
+*tcatalog
+*perso:52000,cont
+*tcatalog
+*call writdisp
+*end file
+``````
+еконец
