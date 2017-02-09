@@ -1,14 +1,20 @@
 шифр 419999 зс5^
 лен 50(1400-ЗП)^
 лен 41(2048)^
+лен 66(1990-ЗП)^
+лен 40(9)^
 eeв1а3
 *name DispDubna-2017
 *     no list
 *call putflag*
 5
-
+*perso:66000
+*tcatalog
+*CALL FICMEMOR
+*call ldshift4
 *perso:50000
-*call dispload
+*tcatalog
+*call dd71
 *end file
 ``````
 еконец
