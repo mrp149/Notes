@@ -2,6 +2,7 @@
 лен 50(1400-ЗП)^
 лен 41(2048)^
 лен 66(1990-ЗП)^
+лен 67(1999-ЗП)^
 лен 40(9)^
 eeв1а3
 *name DispDubna-2017
@@ -9,12 +10,96 @@ eeв1а3
 *call putflag*
 5
 *perso:66000
+*MADLEN,L=FBRG.
+ LDSHIFT:,NAME,
+ ,XTA,61B
+ ,XTA,=0010 3700 0040 0000
+ ,AAX,=7777 0077 7777 7777
+ ,AOX,=:0000 03
+ ,ATX,C
+ ,ARX,=1
+ ,ATX,C+1
+ ,DRUM,C
+ ,XTA,BSHIFT
+ ,ATX,7776B
+ ,XTA,CSHIFT
+ ,ATX,7777B
+ ,DRUM,=0000 0300 0066 0036
+ ,DRUM,C+1
+ ,DRUM,=0000 0300 0066 0037
+ ,XTA,=0010 3700 0066 0036
+ ,ATX,61B
+ 13,UJ,
+ BSHIFT:,LOG,64000
+ CSHIFT:,LOG,70000
+ C:,BSS,2
+ ,END,
 *tcatalog
-*CALL FICMEMOR
-*call ldshift4
+*CALL FICMEMOR:75550
+*CALL LDSHIFT
 *perso:50000
+*MADLEN,L=BRGF.
+ *DRUMBAS:,NAME,
+C      PP 12-7 YKAЗATEЛЬ MБ
+C      PP 6-1 HAЧAЛЬHЫЙ N TPAKTA
+C         ДЛЯ ЗAПИCИ ДИCПETЧEPA
+C
+C      BAPИAHT ДЛЯ ЗAГPYЗKИ HA ЛEHTY:
+C      ,LOG, S DD00 TTZZZ
+C      ЗДECЬ TTZZZ - YKAЗATEЛЬ MЛ
+C            DD - БAЗOBЫЙ БAPAБAH
+C            S=1 - BMECTE C CИCTEMOЙ
+C            S=0 - TOЛЬKO ДИCПETЧEP
+C
+C ,LOG,2500
+ ,LOG,12500 67000
+ ,END,
+ EXCHNRS:,NAME,
+C     PP 13-18 YKAЗATEЛЬ MБ
+C     PP 1-5 HAЧAЛЬHЫЙ N TPAKTA
+C     ДЛЯ HEPEЗИДEHTA MYЛЬTИTAЙПA
+C        ,014,100B
+C        ,025,37B
+C     B CЛYЧAE ЗAГPYЗKИ HA ЛEHTY
+C     39-Й PAЗPЯД = 0,  1-24 HE CYЩECTBEHHЫ
+C
+  ,010,100B
+  ,,
+ ,END,
+ *ПДИCK:,NAME,.
+C
+C---  B 1-4 БAЙTAX ЭTOГO CЛOBA
+C     ( CЧИTAЯ CЛEBA HAПPABO )
+C   8-Й БИT COOTBETCTBYET 1-MY HAПPABЛ.
+C   7-Й       --""--      2-MY  --""--
+C     . . . . . . . . . . . . .
+C   3-Й БИT   --""--      6-MY HAПPABЛ.
+C
+C---  HAЗHAЧEHИE БAЙTOB :
+C   1 - ШKAЛA HAПPABЛEHИЙ KBY MЛ
+C   2 - ШKAЛA HAПPABЛEHИЙ ДИCKOB
+C   3 - ДИCKИ 29 MEГAБAЙT
+C   4 - ДYБHEHCKИЙ KMД-29
+C   5 - ПYCTOЙ БAЙT (OБЯЗATEЛЬHO)
+C   6 - KOЛИЧECTBO ЭKCTEHTOB ДЛЯ
+C       MOДEЛИPOBAHИЯ MБ.
+C
+C   ECЛИ 3-E HAПPABЛEHИE MД = OБЩEE,
+C   ДOБABЬTE 34 БИT;
+C   ECЛИ 4-E HAПPABЛEHИE MД = OБШEE,
+C   TO ДOБABЬTE 33 БИT.
+C
+  ,ISO,6H'054''060''040''040''''37'
+C
+C... B ДYБHE HET 4 HAПP.KBY MЛ
+C    A ДИCKИ B 3 И 4 HAПPABЛ.
+ ,END,.
+
 *tcatalog
-*call dd71
+*MAIN DD86
+*CALL DATAPR*
+*EXECUTE
+*READ OLD 
 *end file
 ``````
 еконец
