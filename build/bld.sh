@@ -1,4 +1,6 @@
 #!/bin/sh
+echo Are you sure?
+read a
 set -x
 
 while read a
