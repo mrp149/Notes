@@ -8,7 +8,11 @@ TAPES:
 1000 - Мadlen-2
 1100 - loader
 1200 - Мониторная Система
-1300 -
+1211 - task11  (!comilation errors in FOREX)
+1221 - libra21 
+1223 - libra23 (!comilation errors in FOREX)
+1247 - task47
+1300 - exfor
 1400 - Диспетчер
 1500 - macro67.dd1
 1600 - tasksav.dd2
