@@ -16,7 +16,59 @@ eeв1а3
    ,KOП,.HET ПPИOPИTETOB
   ГMAC:,ENDM,
   ,END,
-*MADLEN(L=BFR, SТЕХТ=FRЕQ300)
+  FREQ:,EQU,300
+  B*START:,EQU,0
+  ГMAC:,MACRO,KOП
+   ,KOП,.HET ПPИOPИTETOB
+  ГMAC:,ENDM,
+C
+C    ПO 10 P. ГPП - HE ПPEPЫBAEMCЯ.
+C    ПO 40 P. ГPП - ПPEP. C ЧACT. 300
+C    OT ГPП-40 PAБOTAЮT ДPYГ ЗA ДPYГOM :
+C       BIO*TL   - OБCЛYЖИBAHИE TL-PEГИCTPA
+C       ITIMEB10 - HAЧИCЛEHИE BPEMEH ЗAДAЧAM
+C       PR/TIMER - TO, ЧTO PAHЬШE БЫЛO HA
+C                  ГPП-10.
+C
+  ,END,
+  FREQ150:,NAME,
+  FREQ150:,STEXT,. *** ЧACTOTA = 150 ГEPЦ
+  FREQ:,EQU,150
+  B*START:,EQU,0
+  ГMAC:,MACRO,KOП
+  ,KOП,
+  ГMAC:,ENDM,
+  ,END,
+  FREQ600:,NAME,
+  FREQ600:,STEXT,. *** ЧACTOTA = 600 ГEPЦ
+  FREQ:,EQU,600
+  B*START:,EQU,721B
+  ГMAC:,MACRO,KOП
+  ,KOП,=:6010 01
+  ГMAC:,ENDM,
+C
+C    ПO ГPП-10 ПPEPЫBAEMCЯ C ЧACT. 150
+C    ПPИ ЭTOM PAБOTAЮT: ITIMEB10,PR/TIMER.
+C    ПO ГPП-31 ПPEPЫBAEMCЯ ПPИ ПOЯBЛEHИИ
+C    CTAPTOBOГO БИTA B TL-PEГИCTPE.
+C    ПPИ ЭTOM PAЗPEШAЮTCЯ ПPEPЫBAHИЯ ПO
+C    ГPП-40 (ЧACTOTA 600), OT KOTOPЫX
+C    PAБOTAET TOЛЬKO  BIO*TL.
+C
+C    OБECПEЧИBAETCЯ ПOBЫШEHИE ПPИOPИTETA
+C    ПPEPЫBAHИЯM ПO 40 И 31 PAЗPЯДAM ГPП.
+C
+  ,END,
+  FREQ1200:,NAME,
+  FREQ1200:,STEXT,. *** ЧACTOTA = 1200 ГEPЦ
+  FREQ:,EQU,1200
+  B*START:,EQU,721B
+  ГMAC:,MACRO,KOП
+  ,KOП,=:6010 01
+  ГMAC:,ENDM,
+  ,END,
+*        MADLEN(L=BFR, SТЕХТ=FRЕQ300)
+*MADLEN(L=0, SТЕХТ=FRЕQ300)
 *read:50100
 *tcatalog
 *to perso:50000,77
