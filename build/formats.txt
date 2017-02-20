@@ -1,0 +1,12 @@
+
+
+
+
+C      ЗHAЧEHИЯ CЛYЖEБHЫX CЛOB.
+ TADRCS:,EQU,0.TRACK ADDR & CS.
+ IDEN:	,EQU,1.ABTOP ЗAПИCИ
+ CS:	,EQU,2.?
+ NAMED1:,EQU,3.ПEPBOE ИMЯ.
+ NAMED2:,EQU,NAMED1+4.BTOPOE ИMЯ.
+
+
