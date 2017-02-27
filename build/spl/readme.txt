@@ -29,18 +29,16 @@
 25/LIBRAR
 
 ### NUMBERS:
-# FIXED TAPE numbers for the bootstrap in Dispak
-# original tape images came as is  
-   9 - monsys
-  12 - librar12
-  37 - librar37	
-
-# Tape numbers are generated during the bootstrap 
+# NOTE FIXED TAPE numbers for the bootstrap in Dispak
+# these tapes are generated during the bootstrap.
 #
-# all tapes have the following format:
-#   ZONE     CONTENT
-# 00 - 77 preso of compiled source
-#     100 sources in cosy format 
+# All generated tapes have the following format:
+#-----------------------------------
+#   ZONE  | CONTENT
+#-----------------------------------
+# 00 - 77 | perso of the compiled source
+#     100 | sources in the cosy format
+#-----------------------------------
  
 # Pre-fixed taped numbers in DD bootstrap
 #
@@ -49,6 +47,11 @@
 # 1200-1399 The Monitor System (MS) & libraries
 # 1400-1899 OS Dubna Dispatcher (DD)
 # 1900-1999 Temp/Scratch tapes 
+
+# original tape images (as is)
+   9 - monsys
+  12 - librar12
+  37 - librar37
 
 # Comp
 1000 - Мadlen-2
@@ -73,3 +76,4 @@
 # Scratch
 1900 -
 1999 - scratch tape for the uploading
+
