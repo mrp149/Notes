@@ -15,7 +15,7 @@ cat << END1
 лен 67(1999-ЗП)^
 лен 40(9)^
 eeв1а3
-*name DispDubna-2017
+*name OS-Dubna-2017
 *     no list
 *call putflag*
 5
