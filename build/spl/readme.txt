@@ -15,13 +15,12 @@
  6/D73STA
  7/M
  9/MONSYS
-16/USESTA
-17/LINBUF
+10/USESTA
+11/LINBUF
 
 # allocation in MS
 # Library tapes:
 
- 5/LIBRAR
  5/LIBRAR
 21/LIBRAR
 22/LIBRAR
