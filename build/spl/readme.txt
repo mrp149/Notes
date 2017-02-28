@@ -6,6 +6,9 @@
 ##### TAPE NUMBERS AND FORMATS
 ### LABELS:
 # The following tape labels are fixed in OS Dubna
+# these lebels can be tape labels or named tape 
+# models on disks.
+
 # allocations in DD:
 
  1/ROLLIB
@@ -14,22 +17,27 @@
  5/D73LIB
  6/D73STA
  7/M
+ 8/CATALO
  9/MONSYS
 10/USESTA
 11/LINBUF
 
-# allocation in MS
-# Library tapes:
+# allocations in MS
+
+# library tapes:
 
  5/LIBRAR
 21/LIBRAR
 22/LIBRAR
 23/LIBRAR
 25/LIBRAR
+37/LIBRAR
 
-### NUMBERS:
-# NOTE FIXED TAPE numbers for the bootstrap in Dispak
-# these tapes are generated during the bootstrap.
+### THE CORREPONDING NUMBERS IN DISPAK:
+# Please NOTE The FIXED TAPE NUMBERS for the bootstrap
+# these tapes are generated during the bootstrap and
+# are in used in scripts.
+# 
 #
 # All generated tapes have the following format:
 #-----------------------------------
