@@ -1,0 +1,296 @@
+C****************************************
+C*
+C*      O   ПЛAHИPOBЩИKE ЗAДAЧ.
+C*      =======================
+C*
+C*  ЗAДAЧИ, ЗAПYCKAEMЫE ПOЛЬЗOBATEЛЯMИ C
+C*  TEPMИHAЛOB CИCTEMЫ "MYЛЬTИTAЙП",
+C*  TAK ЖE, KAK И ЗAДAЧИ, ПPИCЛAHHЫE ПO
+C*  KAHAЛAM CBЯЗИ C ПEPИФEPИЙHЫX ЭBM,
+C*  A TAKЖE ЗAДAЧИ, BBEДEHHЫE ПO "ПB",
+C*  ЗAПИCЫBAЮTCЯ BO BXOДHYЮ OЧEPEДЬ
+C*  ПPOГPAMMЫ-ПЛAHИPOBЩИKA (TAK HAЗABAEMЫЙ
+C*  ФAЙЛ BBOДA).  TAKИM OБPAЗOM, ЗAГPYЗKA
+C*  MAШИHЫ ЗAДAЧAMИ OCYЩECTBЛЯETCЯ "ЧEPEЗ
+C*  OДHO ГOPЛO", И MOЖET (HAKOHEЦ-TO !)
+C*  ПOЛHOCTЬЮ KOHTPOЛИPOBATЬCЯ OПEPATOPOM.
+C*
+C*  ПPOГPAMMA-ПЛAHИPOBЩИK ЗAПYCKAETCЯ
+C*  ABTOMATИЧECKИ ПPИ BЫЗOBE ДИCПETЧEPA.
+C*  ПPИ HEOБXOДИMOCTИ "PYЧHOГO" ЗAПYCKA
+C*  ИCПOЛЬЗYЙTE ПPИKAЗ "H".
+C*
+C*  KPOME TOГO, ПЛAHИPOBЩИK ПOBTOPHO
+C*  ЗAПYCKAET HA CЧET TE ЗAДAЧИ ИЗ ФAЙЛA
+C*  BBOДA, KOTOPЫE YЖE БЫЛИ ЗAПYЩEHЫ, HO
+C*  HE ДOCЧИTAЛИCЬ ДO KOHЦA ИЗ-ЗA ПEPEBЫЗOBA
+C*  ДИCПETЧEPA.
+C*
+C*      KЛACCЫ CЧETHЫX KAHAЛOB (ШИФPOB) :
+C*   Ш01 - Ш04 : ЗAДAЧИ, BBEДEHHЫE ПO "ПB"
+C*   Ш05 - Ш07 : CBЯЗHЫE ЗAДAЧИ
+C*   Ш05 - Ш07 : TEPMИHAЛЬHЫE БEЗ ДИAЛOГA
+C*   Ш10 - Ш20 : ДИAЛOГOBЫE ЗAДAЧИ.
+C*
+C*  ЗAГPYЗKA ЗAДAЧ HA Ш01-Ш20 PAЗPEШAETCЯ
+C*  HAБOPOM HA ПYЛЬTE B 25-40 PAЗPЯДAX
+C*  6 TYMБЛEPHOГO PEГИCTPA :
+C*       25 - Ш01,  26 - Ш02,
+C*       27 - Ш03,  28 - Ш04,
+C*       29 - Ш05,  30 - Ш06,
+C*       31 - Ш07,  32 - Ш10,
+C*       33 - Ш11,  34 - Ш12,
+C*       35 - Ш13,  36 - Ш14,
+C*       37 - Ш15,  38 - Ш16,
+C*  ECЛИ HИЧEГO HE HAБPAHO - PAЗPEШEHA
+C*  ЗAГPYЗKA BCEX CЧETHЫX KAHAЛOB.
+C*
+C*  ПЛAHИPOBЩИK ИMEET ДBA PEЖИMA PAБOTЫ :
+C*       OTЛAДOЧHЫЙ И CЧETHЫЙ.
+C*
+C***** OTЛAДOЧHЫЙ PEЖИM. BKЛЮЧAETCЯ ДHEM
+C*     ПPИ HAЖATOM 6 PAЗPЯДE T.P.-6
+C*
+C*  Ш01 ЗAГPYЖAETCЯ ЗAДAЧAMИ C  T > 15 MИH.
+C*  Ш02  ---"---   ---"---      T < 31 MИH.
+C*  Ш03  ---"---   ---"---      T < 11 MИH.
+C*  Ш04  ---"---   ---"---      T <  6 MИH.
+C*  Ш05-Ш07 ЗAГPYЖAЮTCЯ CBЯЗHЫMИ ИЛИ HEДИA-
+C*    ЛOГOBЫMИ ЗAДAЧAMИ, ECЛИ Y HИX T < 11.
+C*  Ш10-Ш20 ЗAГPYЖAЮTCЯ ДИAЛOГOBЫMИ ЗAДAЧAMИ
+C*    ECЛИ Y HИX T < 11.
+C*
+C**** CЧETHЫЙ PEЖИM. BKЛЮЧAETCЯ BEЧEPOM
+C*    ПPИ OTЖATOM 6 PAЗPЯДE T.P.-6 :
+C*
+C*  Ш01 ЗAГPYЖAETCЯ ЗAДAЧAMИ C T > 21 MИH.
+C*  Ш04  ---"---    ---"---    T < 10
+C*  Ш02,Ш03,Ш05-Ш20 ЗAГPYЖAЮTCЯ ЗAДAЧAMИ
+C*       B COOTBETCTBИИ C ИX KЛACCAMИ,
+C*       БEЗ YЧETA ЗAKAЗAHHOГO BPEMEHИ T.
+C*
+C*
+C**** ПPИ HEOБXOДИMOCTИ OPГAHИЗOBATЬ
+C*  BHEOЧEPEДHOЙ ЗAПYCK ЗAДAЧИ C HOMEPOM NN
+C*  ПO ФAЙЛY BBOДA,  ИCПOЛЬЗYЙTE ПPИKAЗЫ :
+C*      NNБП     NNПП     NNФП
+C*  ПO "БП" ЗAДAЧA ЗAПYCKAETCЯ HA ЛЮБOЙ
+C*  CBOБOДHЫЙ ШИФP, PAЗPEШEHHЫЙ HA TP-6.
+C*  (БEЗYCЛOBHЫЙ ПPИOPИTET).
+C*  ПO "ПП" - TAK ЖE, HO BЫБOP ШИФPA ПPO-
+C*  ИЗBOДИTCЯ TOЛЬKO ИЗ  Ш04-Ш01.
+C*  (ПOTOKOBЫЙ ПPИOPИTET).
+C*  ПO "ФП" - ЗAПYCK HA Ш01, ECЛИ OH CBOБO-
+C*  ДEH И PAЗPEШEH HA TP-6 (ФOHOBЫЙ ПPИOP.)
+C*
+C*****************************************
+C*
+C*       O PACПEЧATKE ЛИCTИHГOB.
+C*       =======================
+C*
+C*  PACПEЧATKOЙ ЗAHИMAETCЯ CЛYЖEБHAЯ ЗAДAЧA
+C*  "BЫBOД".  OHA ЗAПYCKAETCЯ ABTOMATИЧECKИ
+C*  ПPИ BЫЗOBE ДИCПETЧEPA (ECЛИ HE HAЖAT 42
+C*  PAЗPЯД TP-2) ИЛИ BPYЧHYЮ ПPИKAЗOM  "P".
+C*
+C*  ЗAXBATИB ПEPBOE CBOБOДHOE AЦПY, ЗAДAЧA
+C*  BЫBOДA TPEБYET YCTAHOBИTЬ ЛИCT HA AЦПY.
+C*  B ЭTO BPEMЯ OHA HAXOДИTCЯ B ЖДYЩEM PE-
+C*  ЖИME (XAPAKTEPHO HAЛИЧИE CЛOBA "ЖДY" B
+C*  NAME ЗAДAЧИ).  B ЖДYЩEM PEЖИME ЛИCTИHГИ
+C*  BЫBOДЯTCЯ TOЛЬKO ПO ЭKCПPECC-ПPИKAЗAM.
+C*
+C*  A1P (A2P) - YCTAHOBKA ABTOMATИЧECKOГO
+C*              PEЖИMA HA AЦПY 1 (2).
+C*  Ж1P (Ж2P) - YCTAHOBKA ЖДYЩEГO PEЖИMA.
+C*  C1P (C2P) - YCTAHOBKA ЛИCTA ПO ЛИHEЙKE
+C*              HA AЦПY 1 (2).
+C*
+C*  HAЛИЧИE BCEX ЭTИX ПPИKAЗOB CBЯЗAHO CO
+C*  CTPEMЛEHИEM K ЭKOHOMИИ БYMAГИ. ECЛИ B
+C*  CИCTEME YCTAHOBЛEH PEЖИM ЭKOHOMИИ БYMA-
+C*  ГИ BO BPEMЯ CЧETA ЗAДAЧИ (T.E. ИГHOPИPY-
+C*  ЮTCЯ KOMAHДЫ ПEPEXOДA HA HOBЫЙ ЛИCT ИЛИ
+C*  ЧACTЬ ЛИCTA), ЭTOT PEЖИM HE OTMEHEH OПE-
+C*  PATOPOM (HAЖATИEM 16-ГO PAЗPЯДA HA 6-M
+C*  TYMБЛEPHOM PEГИCTPE), A B ПYCKOBOM ПAKE-
+C*  TE ПOЛЬЗOBATEЛЯ HET YПPABЛЯЮЩEЙ KAPTЫ
+C*      *PAGE:999,LIST    - EГO ЛИCTИHГ
+C*  "YПЛOTHЯETCЯ".  ПOЭTOMY ЗAДAЧA BЫBOДA
+C*  CAMA BЫHYЖДEHA CЧИTATЬ CTPOKИ HA ЛИCTE,
+C*  A ECЛИ BЫ XOTИTE "ПOДOГHATЬ ЛИCT", TO
+C*  BЫ ДOЛЖHЫ ПPEДYПPEДИTЬ EE OБ ЭTOM.
+C*
+C*  ИTAK, B CЛYЧAE CБOЯ ЛИCTOBAHИЯ PEKOMEH-
+C*  ДYEM TAKYЮ ПOCЛEДOBATEЛЬHOCTЬ ДEЙCTBИЙ:
+C*   1. BЫДATЬ ПPИKAЗ Ж1P (Ж2P) И ДOЖДATЬCЯ
+C*      KOHЦA TEKYЩEЙ BЫДAЧИ, ECЛИ OHA ECTЬ.
+C*   2. BЫДATЬ ПPИKAЗ C1P (C2P)
+C*   3. YCTAHOBИTЬ ЛИCT HA AЦПY 1 (2), KAK
+C*      OБЫЧHO: CГИБ БYMAГИ ПO ЧEPHOЙ ЛИHИИ.
+C*   4. BЫДATЬ ПPИKAЗ A1P (A2P).
+C*
+C*  ПPИHYДИTEЛЬHOE YПЛOTHEHИE ЛИCTИHГOB
+C*  MOЖHO OTMEHИTЬ, HAЖAB 16-Й PAЗPЯД TP-6 !
+C*
+C*
+C***    CHЯTИE ЗAДAЧИ BЫBOДA :  K1P (K2P).
+C*
+C*  ECЛИ B MOMEHT HAБOPA ПPИKAЗA ПEЧATAETCЯ
+C*  ЛИCTИHГ - ЗAДAЧA BЫBOДA ДOПEЧATAET EГO,
+C*  И TOЛЬKO ПOTOM OKOHЧИTCЯ.
+C*
+C***    ПPOПYCK TEKYЩEЙ BЫДAЧИ :  1P (2P)
+C*
+C*  ПEЧATЬ TEKYЩEГO ЛИCTИHГA ПPEKPAЩAETCЯ,
+C*  ПEЧATAETCЯ EГO ПOCЛEДHЯЯ CTPAHИЦA.
+C*  ЭTOT ЖE ПPИKAЗ ИCПOЛЬЗYETCЯ KAK OTBET
+C*  HA ПPEДЛOЖEHИE ЗAБPATЬ ПEPФOPAЦИЮ.
+C*
+C***   ПOBTOPHЫЙ BЫBOД : CCCNNЭ1P (CCCNNЭ2P)
+C*
+C*  CCC = HAЧAЛЬHЫЙ HOMEP CTPAHИЦЫ ЛИCTИHГA
+C*   NN = HOMEP ЛИCTИHГA ПO ФAЙЛY BЫBOДA
+C*        ПAPAMETP CCC MOЖHO OПYCTИTЬ.
+C*  ПEPФOPAЦИЯ ПO ЭTOMY ПPИKAЗY TOЖE ПOBTO-
+C*  PЯETCЯ.  ECЛИ HAДO ПOBTOPИTЬ TOЛЬKO
+C*  ЛИCTИHГ,  ИCПOЛЬЗYЙTE ПPИKAЗ :
+C*       CCCNNЛ1P   (CCCNNЛ2P).
+C*  ECЛИ HAДO ПOBTOPИTЬ TOЛЬKO ПEPФOPAЦИЮ,
+C*  ИCПOЛЬЗYЙTE ПPИKAЗ:  NNП1P (NNП2P).
+C*
+C***   БЛOKИPOBKA ПEPФOPAЦИИ :  Л1P (Л2P)
+C*  Y BCEX ЗAДAЧ BЫBOДИTCЯ TOЛЬKO ЛИCTИHГ
+C*  ПEPФOPAЦИЯ ПPOCTO OTБPACЫBAETCЯ.
+C*
+C***   БЛOKИPOBKA ЛИCTИHГA :    П1P (П2P)
+C*  HAOБOPOT - BЫДAETCЯ TOЛЬKO ПEPФOPAЦИЯ.
+C*
+C*
+C***   HAПOMИHAEM: ПPEДПOCЛEДHИЙ CИMBOЛ
+C*  Y BCEX ПPИKAЗOB - HOMEP AЦПY (1 ИЛИ 2)
+C*  ECЛИ 0 - ПPИKAЗ OTHOCИTCЯ K ЛЮБOЙ
+C*  ЗAДAЧE BЫBOДA.
+C*
+
+
+
+ ,UZA,TEЛ.ПPИKAЗ "TEЛ"
+C=====   ПEPEKЛЮЧATEЛЬ ПPИKAЗOB
+ :,ITA,V3  	.ПPИKAЗ ":"
+ :SR,VTM,ЗAПYCK	.ПPИKAЗ "B"
+ :SR,VTM,STOP	.ПPИKAЗ "."
+ :,UJ,ORD*C	.ПPИKAЗ "C"
+ :14,VTM,-2	.ПPИKAЗ "П"
+ :  ,UJ,JOBTIME	.ПPИKAЗ "T"
+ : ,XTA,FFPT    .ПPИKAЗ "Л"
+ :  ,UJ,CBBOД	.ПPИKAЗ "/"
+ : ,UJ,INPUT	.ПPИKAЗ "I"
+ :,UJ,H/BATCH	.ПPИKAЗ "H"
+ ,UJ,OПOЗH	.ПPИKAЗ "O"
+ :,UJ,NOTUND	.ПPИKAЗ "+"
+ :,XTA,BUFTA	.ПPИKAЗ "N"
+ :,UJ,LISTTOT	.ПPИKAЗ "A"
+ :,UJ,LINEPR	.ПPИKAЗ "Y"
+ :,XTA,BUFTA	.ПPИKAЗ "P"
+ :,XTA,BUFTA	.ПPИKAЗ "D"
+ :,XTA,BUFTA	.ПPИKAЗ "F"
+C*****   ПPИKAЗ : "Б"
+C*****   ПPИKAЗ : <NMФ>M<NБOБ>Б
+C*****   ПPИKAЗЫ : <NYCTP> . . "O"
+C*****   ПPИKAЗЫ : "PO" , "HO"
+C*****   ПPИKAЗ : "KO"
+C*****   ПPИKAЗЫ : "ДPO" , "ДHO"
+C*****   ПPИKAЗ : "ДPO"
+C*****   ПPИKAЗ : "ДHO"
+C*****   ПPИKAЗ : "ДKO"
+C*****   ПPИKAЗЫ : <MФ> "ПEP"
+C*****   ПPИKAЗ : "TEЛ"
+C*****   ПPИKAЗ : "I"
+C*****   ПPИKAЗ : "LINKSTOP"
+C*****   ПPИKAЗ : <ИMЯ П/C> "STOP"
+C*****   ПPИKAЗЫ : . . ."DOWN"   . . ."UP"
+C*****   ПPИKAЗЫ : "ALLDOWN" , "ALLUP"
+C*****   ПPИKAЗЫ : <NT>"DOWN"   <NT>"UP"
+C*****   ПPИKAЗ : "."
+C*****   ПPИKAЗ : "PTSTOP"
+C*****   ПPИKAЗ : "H"
+C*****   ПPИKAЗЫ : "N" , ..."DOWN"
+C*****   ПPИKAЗ : "Y"
+C*****   ПPИKAЗЫ : . . . "A"
+C*****   ПPИKAЗЫ : "OSTA" , "CSTA"
+C*****   ПPИKAЗ : <N ШИФPA> "A"
+C*****   ПPИKAЗ : "P"
+C*****   ПPИKAЗ : "MP"
+C*****   ПPИKAЗЫ : "DF" , "REF"
+C*****   ПPИKAЗ: "PANNO"
+C*****   ПPИKAЗ : "REF" (OTKAЗ OT KOHCOЛИ)
+C*****   ПPИKAЗ : ":"
+C*****   ПPИKAЗЫ : "B" , "ПB"
+C*****   ПPИKAЗ : "/"
+C*****   ПPИKAЗЫ : "ПЛ" , "KПЛ"
+C......   ПPИKAЗЫ ПEPФOЛEHTЫ:
+C*****   ПPИKAЗ : . . . "П"
+C*****   ПPИKAЗ : <N ШИФPA> "П"
+C*****   ПPИKAЗЫ : NN"ФП"  NN"БП"  NN"ПП"
+C*****   ПPИKAЗЫ : "YФП" , "YБП" , "YПП"
+C*****   ПPИKAЗ : "C"
+C*****   ПPИKAЗ : "T"
+C*****   ПPИKAЗЫ : . . . "D"
+C*****   ПPИKAЗ : "DD"
+C*****   ПPИKAЗ : ДДMMГГ"D"
+C*****   ПPИKAЗ : "ЧЧ.MMT"
+C=====   ДOПOЛHEHИE K ПPИKAЗAM
+C*  37/33 - HOMEP ПPИKAЗA
+C*          ПPИ ПPИKAЗE N10 Э.P. ЗAДAET
+C*          ПPИ ПPИKAЗE N23
+C*     ПO ПPИKAЗY N22 BЫДAETCЯ
+ :,XTA,5.ПPИKAЗ 7 = "ДKO"
+C      ( ПPИKAЗ 77777/ )
+C---   OT ЗAПPOCA ИЛИ ПPИKAЗA "B" :
+C         БЫЛ ЛИ ПPИKAЗ HA BЫБPOC
+C         HET ЛИ ПPИKAЗA CHЯTИЯ 'ДKO'.
+C   M=2 - ПPИKAЗ ПEЧ
+C -- ДЛЯ ПPИKAЗA "HOB"
+C             ДЛЯ ПPИKAЗOB MYЛЬTИTAЙПA
+C*****   ПPИKAЗ : O C A
+C*****   ПPИKAЗ : O З A
+C*****   ПPИKAЗ : O Ч T
+C*****   ПPИKAЗ : P E Г
+C*****   ПPИKAЗ : P E Г  1
+C*****   ПPИKAЗЫ : З A П , Ч И З
+C*****   ПPИKAЗ : Ф Я Ч
+C*****   ПPИKAЗ : И Д И  <ИДEHTИФ>
+C***** ПPИKAЗЫ : M Я Ч  M Я K  Д E C  И Д И
+ :R,VTM,LIST.ПPИKAЗ : 'ЛИCT'
+C+++++   ГOCПOДA! ЗABOДЯ HOBЫE ПPИKAЗЫ,
+C        ДOГOBOPИMCЯ, ЧTO BCE ПPИKAЗЫ,
+ :R,VTM,SCAN LIS.ПPИKAЗ : 'ДO'
+C-----   ПPИKAЗ : Д E C
+C-----   П/П ПPИKAЗOB OTЛAДЧИKA
+C-----   ПPИKAЗ : O C A
+C-----   ПPИKAЗ : O З A
+C-----   ПPИKAЗ : O Ч T
+C-----   ПPИKAЗ : И Д И
+C-----   ПPИKAЗ : P E T
+C-----   ПPИKAЗ : M Я K
+C-----   ПPИKAЗ : M Я Ч
+C-----   ПPИKAЗ : Ш A Г
+C-----   ПPИKAЗ : Ф Я Ч
+C-----   ПPИKAЗ : Ч И З
+C-----   ПPИKAЗ : З A П
+C ======= ПPИKAЗЫ BBOДA
+C         ПPИ OШИБKE ПPИKAЗ ИГHOPИPYETCЯ.
+C  ПPИKAЗ 'BЫBOДИTЬ ПO L CTPOK':
+C=====   'ПYCTOЙ' ПPИKAЗ
+C=====   ПPИKAЗ : ЛИCT NЗOHЫ
+C......   CMЫCЛ ШKAЛ, CBЯЗAHHЫX C ПPИKAЗOM - 'ЛИCT'
+C         LISC  - HAXOДИMCЯ BHYTPИ ПPИKAЗA - 'ЛИCT'
+C=====   ПPИKAЗ : ДOH NCTPOKИ
+C=====   ПPИKAЗ : ДO OБPAЗ
+C  ======  ПPИKAЗ  "HOB"
+C  =======  ПPИKAЗ  PEЗ NN - ПPOCMOTP PEЗYЛЬTATOB
+C=============  ПPИKAЗЫ ПYCKOB ЗAДAЧ
+C ===== ПPИKAЗ   CHAN XXX
+C  ====== ПPИKAЗ  ИCK NN - ИCKЛЮЧИTЬ
+C     17  : 1=ПPOДOЛЖEHИE ПPИKAЗA "KAK"
